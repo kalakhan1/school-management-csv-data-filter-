@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ERP Data Viewer</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <style>
+    :root { --primary: #1a237e; --bg: #f5f7fa; --card-bg: #ffffff; --text: #212529; }
+    [data-theme="dark"] { --bg: #0a0f1a; --card-bg: #1a1f2e; --text: #e0e0e0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; }
+    .container-fluid { padding: 15px; }
+    .card { background: var(--card-bg); border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .card-header { background: transparent; border-bottom: 1px solid rgba(0,0,0,0.06); font-weight: 600; }
+    .btn-primary { background: var(--primary); border: none; }
+    .form-control, .form-select { background: var(--card-bg); color: var(--text); border: 1px solid rgba(0,0,0,0.15); border-radius: 10px; }
+    [data-theme="dark"] .form-control, [data-theme="dark"] .form-select { border-color: rgba(255,255,255,0.15); }
+    .pagination .page-link { cursor: pointer; }
+    #visualDocContainer { background: #fff; color: #000; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    @media print { body { background: #fff; } .no-print { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h3 class="mb-0"><i class="bi bi-search me-2"></i>ERP Data Viewer</h3>
+      <div>
+        <button class="btn btn-outline-secondary me-2" onclick="toggleTheme()"><i class="bi bi-moon-stars"></i> <span id="themeLabel">Dark</span></button>
+        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#settingsModal" onclick="openSettingsModal()"><i class="bi bi-gear"></i> Settings</button>
+      </div>
+    </div>
+
+    <!-- Import Section -->
+    <div class="card">
+      <div class="card-header"><i class="bi bi-cloud-upload me-2"></i>Import CSV Backup</div>
+      <div class="card-body">
+        <textarea class="form-control mb-2" id="csvContent" rows="5" placeholder="Paste CSV content here..."></textarea>
+        <input type="file" class="form-control mb-2" id="csvFile" accept=".csv" onchange="loadCSVFile(this)">
+        <button class="btn btn-primary me-2" onclick="importCSV()"><i class="bi bi-upload me-1"></i> Import</button>
+        <button class="btn btn-success" onclick="loadDummyData()"><i class="bi bi-database-add me-1"></i> Load Dummy Data (Testing)</button>
+        <span id="importStatus" class="ms-2"></span>
+      </div>
+    </div>
+
+    <!-- Quick Person Search -->
+    <div class="card">
+      <div class="card-header"><i class="bi bi-person-lines-fill me-2"></i>Get All Records for a Person/Transaction</div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-md-4"><input type="text" id="personId" class="form-control" placeholder="Enter Student/Teacher/Reg ID"></div>
+          <div class="col-md-2"><button class="btn btn-primary w-100" onclick="searchPerson()"><i class="bi bi-search"></i> Find</button></div>
+        </div>
+        <div id="personResults" class="mt-3"></div>
+      </div>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="card">
+      <div class="card-header"><i class="bi bi-funnel me-2"></i>Advanced Filters</div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-md-3"><select id="filterSheet" class="form-select" onchange="onSheetChange()"><option value="">All Sheets</option></select></div>
+          <div class="col-md-3"><input type="text" id="searchTerm" class="form-control" placeholder="Search all fields..."></div>
+          <div class="col-md-2"><select id="filterColumn" class="form-select"><option value="">Column</option></select></div>
+          <div class="col-md-2"><input type="text" id="filterValue" class="form-control" placeholder="Value"></div>
+          <div class="col-md-2"><select id="dateField" class="form-select"><option value="">Date Field</option></select></div>
+          <div class="col-md-2"><input type="date" id="dateFrom" class="form-control"></div>
+          <div class="col-md-2"><input type="date" id="dateTo" class="form-control"></div>
+          <div class="col-md-2"><select id="filterClass" class="form-select"><option value="">Class</option></select></div>
+          <div class="col-md-2"><select id="filterSection" class="form-select"><option value="">Section</option></select></div>
+          <div class="col-md-1"><button class="btn btn-primary w-100" onclick="searchData()"><i class="bi bi-search"></i></button></div>
+          <div class="col-md-1"><button class="btn btn-outline-danger w-100" onclick="clearFilters()"><i class="bi bi-x"></i></button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="card">
+      <div class="card-header d-flex justify-content-between">
+        <span><i class="bi bi-table me-2"></i>Results (<span id="resultCount">0</span>)</span>
+        <div>
+          <button class="btn btn-sm btn-success me-1" onclick="downloadCSV()"><i class="bi bi-download"></i> CSV</button>
+          <button class="btn btn-sm btn-info me-1" onclick="openShareModal('whatsapp')"><i class="bi bi-whatsapp"></i></button>
+          <button class="btn btn-sm btn-warning me-1" onclick="openShareModal('email')"><i class="bi bi-envelope"></i></button>
+          <button class="btn btn-sm btn-secondary" onclick="openVisualDoc()"><i class="bi bi-file-earmark-text"></i> Visual</button>
+        </div>
+      </div>
+      <div class="card-body p-0" style="overflow-x:auto;">
+        <table class="table table-striped mb-0" id="resultsTable"><thead></thead><tbody></tbody></table>
+      </div>
+      <div class="card-footer text-center" id="paginationControls"></div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg"><div class="modal-content">
+      <div class="modal-header"><h5>Settings</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body" id="settingsBody">Loading...</div>
+      <div class="modal-footer">
+        <button class="btn btn-warning me-2" onclick="resetDefaultSettings()">Reset Default</button>
+        <button class="btn btn-info me-2" onclick="clearCache()">Clear Cache</button>
+        <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- Share Modal -->
+  <div class="modal fade" id="shareModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+      <div class="modal-header"><h5 id="shareModalTitle">Share</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body" id="shareBody"></div>
+      <div class="modal-footer"><button class="btn btn-primary" onclick="sendShare()">Send</button></div>
+    </div></div>
+  </div>
+
+  <!-- Visual Doc Modal -->
+  <div class="modal fade" id="visualDocModal" tabindex="-1">
+    <div class="modal-dialog modal-xl"><div class="modal-content">
+      <div class="modal-header no-print"><h5>Visual Document</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body" id="visualDocContainer"></div>
+      <div class="modal-footer no-print">
+        <button class="btn btn-primary" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
+        <button class="btn btn-success" onclick="downloadVisualAsImage()"><i class="bi bi-download"></i> Image</button>
+      </div>
+    </div></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script>
+  // ==================== GLOBAL STATE ====================
+  var currentSettings = null;   // will be loaded on page start
+  var filteredResults = [];
+  var currentPage = 1, pageSize = 20;
+  var shareType = '';
+
+  // ==================== UTILS ====================
+  function $(sel) { return document.querySelector(sel); }
+  function callGS(fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function(resolve) {
+      google.script.run
+        .withSuccessHandler(function(r) { resolve(r); })
+        .withFailureHandler(function(e) { console.error(e); resolve(null); })
+        [fn].apply(null, args);
+    });
+  }
+
+  function showToast(msg, type) {
+    type = type || 'info';
+    var div = document.createElement('div');
+    div.className = 'alert alert-' + type + ' alert-dismissible fade show position-fixed top-0 end-0 m-3';
+    div.innerHTML = msg + '<button class="btn-close" data-bs-dismiss="alert"></button>';
+    document.body.appendChild(div);
+    setTimeout(function() { div.remove(); }, 4000);
+  }
+
+  // ==================== THEME ====================
+  function applyTheme() {
+    if (!currentSettings) {
+      currentSettings = { theme: 'light', primaryColor: '#1a237e' };
+    }
+    document.documentElement.setAttribute('data-theme', currentSettings.theme || 'light');
+    document.documentElement.style.setProperty('--primary', currentSettings.primaryColor || '#1a237e');
+    var label = $('#themeLabel');
+    if (label) label.textContent = (currentSettings.theme === 'dark') ? 'Light' : 'Dark';
+  }
+
+  async function toggleTheme() {
+    if (!currentSettings) currentSettings = {};
+    currentSettings.theme = (currentSettings.theme === 'dark') ? 'light' : 'dark';
+    await callGS('updateSettings', { theme: currentSettings.theme });
+    applyTheme();
+  }
+
+  // ==================== DUMMY DATA ====================
+  async function loadDummyData() {
+    if (!confirm('This will replace any existing imported data with test data. Continue?')) return;
+    showToast('Loading dummy data...', 'info');
+    var res = await callGS('loadDummyData');
+    if (res && res.success) {
+      showToast('Dummy data loaded!', 'success');
+      loadSheetSelector();
+      updateColumns();
+      loadClassAndSectionOptions();
+    } else {
+      showToast('Failed to load dummy data', 'danger');
+    }
+  }
+
+  // ==================== CSV IMPORT ====================
+  function loadCSVFile(input) {
+    var file = input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      $('#csvContent').value = e.target.result;
+    };
+    reader.readAsText(file);
+  }
+
+  async function importCSV() {
+    var csv = $('#csvContent').value.trim();
+    if (!csv) return showToast('Please paste CSV content', 'warning');
+    var status = $('#importStatus');
+    status.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Importing...';
+    var res = await callGS('importCSVData', csv);
+    if (res && res.success) {
+      showToast('Imported ' + res.imported.length + ' sheets', 'success');
+      loadSheetSelector();
+      updateColumns();
+      loadClassAndSectionOptions();
+    } else {
+      showToast('Import failed: ' + (res && res.message ? res.message : 'Error'), 'danger');
+    }
+    status.innerHTML = '';
+  }
+
+  // ==================== SHEET & FILTER UI ====================
+  async function loadSheetSelector() {
+    var sheets = await callGS('getImportedSheets');
+    var sel = $('#filterSheet');
+    sel.innerHTML = '<option value="">All Sheets</option>';
+    if (sheets) sheets.forEach(function(s) {
+      sel.innerHTML += '<option value="' + s.name + '">' + s.displayName + ' (' + s.rowCount + ')</option>';
+    });
+  }
+
+  function onSheetChange() { updateColumns(); }
+
+  async function updateColumns() {
+    var sheetName = $('#filterSheet').value;
+    var columns = [];
+    if (sheetName) {
+      columns = await callGS('getColumnsForSheet', sheetName);
+    } else {
+      columns = await callGS('getAllColumns');
+    }
+    var colSelect = $('#filterColumn');
+    colSelect.innerHTML = '<option value="">Column</option>';
+    if (columns) columns.forEach(function(c) {
+      colSelect.innerHTML += '<option>' + c + '</option>';
+    });
+
+    var dateSelect = $('#dateField');
+    dateSelect.innerHTML = '<option value="">Date Field</option>';
+    if (columns) {
+      columns.filter(function(c) {
+        return c.toLowerCase().includes('date') || c === 'DOB' || c === 'AdmissionDate' || c === 'JoiningDate';
+      }).forEach(function(c) {
+        dateSelect.innerHTML += '<option>' + c + '</option>';
+      });
+    }
+  }
+
+  async function loadClassAndSectionOptions() {
+    var classes = ['Play Group','Nursery','Prep','Class 1','Class 2','Class 3','Class 4','Class 5','Class 6','Class 7','Class 8','Class 9','Class 10','Class 11','Class 12'];
+    var classSel = $('#filterClass');
+    classSel.innerHTML = '<option value="">Class</option>';
+    classes.forEach(function(c) { classSel.innerHTML += '<option>' + c + '</option>'; });
+    $('#filterSection').innerHTML = '<option value="">Section</option><option>A</option><option>B</option><option>C</option><option>D</option>';
+  }
+
+  // ==================== SEARCH ====================
+  async function searchData() {
+    var filters = {
+      searchTerm: $('#searchTerm').value,
+      column: $('#filterColumn').value,
+      value: $('#filterValue').value,
+      dateField: $('#dateField').value,
+      dateFrom: $('#dateFrom').value,
+      dateTo: $('#dateTo').value,
+      class: $('#filterClass').value,
+      section: $('#filterSection').value
+    };
+    var sheetName = $('#filterSheet').value;
+    if (sheetName) {
+      filteredResults = await callGS('getFilteredData', sheetName, filters);
+    } else {
+      filteredResults = await callGS('getGlobalSearchResults', filters);
+    }
+    currentPage = 1;
+    renderTable();
+    renderPagination();
+  }
+
+  function clearFilters() {
+    ['searchTerm','filterColumn','filterValue','dateField','dateFrom','dateTo','filterClass','filterSection'].forEach(function(id) {
+      var el = $('#'+id);
+      if (el) el.value = '';
+    });
+    filteredResults = [];
+    renderTable();
+    renderPagination();
+  }
+
+  // ==================== PERSON SEARCH ====================
+  async function searchPerson() {
+    var id = $('#personId').value.trim();
+    if (!id) return showToast('Enter an ID', 'warning');
+    var results = await callGS('getPersonAllRecords', id);
+    var container = $('#personResults');
+    if (!results || Object.keys(results).length === 0) {
+      container.innerHTML = '<div class="alert alert-warning">No records found</div>';
+      return;
+    }
+    var html = '';
+    Object.entries(results).forEach(function(entry) {
+      var sheet = entry[0], records = entry[1];
+      html += '<h5 class="mt-2">' + sheet + ' (' + records.length + ')</h5>';
+      if (records.length > 0) {
+        var cols = Object.keys(records[0]);
+        html += '<div style="overflow-x:auto;"><table class="table table-sm table-bordered"><thead><tr>';
+        cols.forEach(function(c) { html += '<th>' + c + '</th>'; });
+        html += '</tr></thead><tbody>';
+        records.forEach(function(r) {
+          html += '<tr>';
+          cols.forEach(function(c) { html += '<td>' + (r[c]||'') + '</td>'; });
+          html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+      }
+    });
+    container.innerHTML = html;
+  }
+
+  // ==================== TABLE & PAGINATION ====================
+  function renderTable() {
+    var tbody = $('#resultsTable tbody');
+    var thead = $('#resultsTable thead');
+    tbody.innerHTML = '';
+    thead.innerHTML = '';
+    $('#resultCount').textContent = filteredResults.length;
+    if (filteredResults.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center">No data found</td></tr>';
+      return;
+    }
+    var columns = Object.keys(filteredResults[0]);
+    thead.innerHTML = '<tr>' + columns.map(function(c) { return '<th>' + c + '</th>'; }).join('') + '</tr>';
+    var start = (currentPage - 1) * pageSize;
+    var pageData = filteredResults.slice(start, start + pageSize);
+    pageData.forEach(function(row) {
+      var tr = document.createElement('tr');
+      columns.forEach(function(col) {
+        var td = document.createElement('td');
+        td.textContent = row[col] || '';
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderPagination() {
+    var totalPages = Math.ceil(filteredResults.length / pageSize);
+    var container = $('#paginationControls');
+    if (totalPages <= 1) { container.innerHTML = ''; return; }
+    var html = '<nav><ul class="pagination pagination-sm justify-content-center mb-0">';
+    html += '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '"><a class="page-link" onclick="goToPage(' + (currentPage - 1) + ')">«</a></li>';
+    for (var i = 1; i <= totalPages; i++) {
+      html += '<li class="page-item ' + (i === currentPage ? 'active' : '') + '"><a class="page-link" onclick="goToPage(' + i + ')">' + i + '</a></li>';
+    }
+    html += '<li class="page-item ' + (currentPage === totalPages ? 'disabled' : '') + '"><a class="page-link" onclick="goToPage(' + (currentPage + 1) + ')">»</a></li>';
+    html += '</ul></nav>';
+    container.innerHTML = html;
+  }
+
+  function goToPage(page) {
+    var totalPages = Math.ceil(filteredResults.length / pageSize);
+    if (page < 1 || page > totalPages) return;
+    currentPage = page;
+    renderTable();
+    renderPagination();
+  }
+
+  // ==================== DOWNLOAD / SHARE ====================
+  function downloadCSV() {
+    if (filteredResults.length === 0) return showToast('No data', 'warning');
+    var cols = Object.keys(filteredResults[0]);
+    var csv = cols.join(',') + '\n';
+    filteredResults.forEach(function(row) {
+      csv += cols.map(function(c) { return '"' + String(row[c]||'').replace(/"/g,'""') + '"'; }).join(',') + '\n';
+    });
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'filtered_data.csv';
+    a.click();
+  }
+
+  function openShareModal(type) {
+    shareType = type;
+    var modal = new bootstrap.Modal($('#shareModal'));
+    if (type === 'whatsapp') {
+      $('#shareModalTitle').textContent = 'Share via WhatsApp';
+      $('#shareBody').innerHTML = '<input class="form-control" id="shareNumber" placeholder="WhatsApp number with country code">';
+    } else {
+      $('#shareModalTitle').textContent = 'Share via Email';
+      $('#shareBody').innerHTML = '<input class="form-control mb-2" id="shareEmail" placeholder="Email address"><input class="form-control" id="shareSubject" placeholder="Subject">';
+    }
+    modal.show();
+  }
+
+  async function sendShare() {
+    if (filteredResults.length === 0) return showToast('No data', 'warning');
+    var cols = Object.keys(filteredResults[0]);
+    var msg = '';
+    filteredResults.slice(0, 20).forEach(function(r, i) {
+      msg += (i+1) + '. ' + cols.map(function(c) { return c + ': ' + (r[c]||''); }).join(', ') + '\n';
+    });
+    if (shareType === 'whatsapp') {
+      var num = $('#shareNumber').value.replace(/[^0-9]/g,'');
+      if (!num) return showToast('Enter number', 'warning');
+      window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
+    } else {
+      var email = $('#shareEmail').value;
+      var subject = $('#shareSubject').value || 'ERP Data Report';
+      var res = await callGS('sendEmailReport', email, subject, msg);
+      if (res && res.success) showToast('Email sent!', 'success');
+      else showToast('Email failed', 'danger');
+    }
+    bootstrap.Modal.getInstance($('#shareModal')).hide();
+  }
+
+  // ==================== VISUAL DOCUMENT ====================
+  async function openVisualDoc() {
+    if (filteredResults.length === 0) return showToast('No data', 'warning');
+    var s = currentSettings || {};
+    var logo = s.logoUrl || 'https://img.icons8.com/color/96/000000/school.png';
+    var html = '<div style="text-align:center;padding:20px;font-family:\'Segoe UI\',sans-serif;max-width:800px;margin:auto;">' +
+      '<img src="' + logo + '" style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin-bottom:10px;">' +
+      '<h3 style="color:' + s.primaryColor + ';">' + s.schoolName + '</h3><hr>' +
+      '<p><strong>Report Date:</strong> ' + new Date().toLocaleDateString() + '</p>';
+    var cols = Object.keys(filteredResults[0]);
+    html += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%;margin-top:15px;"><thead><tr>';
+    cols.forEach(function(c) { html += '<th style="background:' + s.primaryColor + ';color:#fff;">' + c + '</th>'; });
+    html += '</tr></thead><tbody>';
+    filteredResults.slice(0, 50).forEach(function(row) {
+      html += '<tr>';
+      cols.forEach(function(c) { html += '<td>' + (row[c]||'') + '</td>'; });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    if (s.customFooterLine) html += '<p style="margin-top:20px;font-style:italic;text-align:center;">' + s.customFooterLine + '</p>';
+    html += '</div>';
+    $('#visualDocContainer').innerHTML = html;
+    new bootstrap.Modal($('#visualDocModal')).show();
+  }
+
+  function downloadVisualAsImage() {
+    var container = $('#visualDocContainer');
+    html2canvas(container).then(function(canvas) {
+      var link = document.createElement('a');
+      link.download = 'visual_report.png';
+      link.href = canvas.toDataURL();
+      link.click();
+    });
+  }
+
+  // ==================== SETTINGS ====================
+  async function openSettingsModal() {
+    await loadSettings();
+    renderSettingsForm();
+  }
+
+  async function loadSettings() {
+    currentSettings = await callGS('getSettings');
+    if (!currentSettings) {
+      currentSettings = { theme: 'light', primaryColor: '#1a237e' };
+    }
+    applyTheme();
+  }
+
+  function renderSettingsForm() {
+    var s = currentSettings || {};
+    var body = $('#settingsBody');
+    body.innerHTML = 
+      '<div class="row g-2">' +
+        '<div class="col-md-6"><label>School Name</label><input class="form-control" id="setSchoolName" value="' + (s.schoolName||'') + '"></div>' +
+        '<div class="col-md-6"><label>Logo URL</label><input class="form-control" id="setLogoUrl" value="' + (s.logoUrl||'') + '"></div>' +
+        '<div class="col-md-6"><label>Primary Color</label><input type="color" class="form-control" id="setPrimaryColor" value="' + (s.primaryColor||'#1a237e') + '"></div>' +
+        '<div class="col-md-6"><label>Theme</label><select class="form-select" id="setTheme"><option value="light" ' + (s.theme==='light'?'selected':'') + '>Light</option><option value="dark" ' + (s.theme==='dark'?'selected':'') + '>Dark</option></select></div>' +
+        '<div class="col-12"><label>Custom Footer Line (for Visual Doc)</label><input class="form-control" id="setFooterLine" value="' + (s.customFooterLine||'') + '"></div>' +
+        '<div class="col-12"><label>Contact Email</label><input class="form-control" id="setContactEmail" value="' + (s.contactEmail||'') + '"></div>' +
+      '</div>';
+  }
+
+  async function saveSettings() {
+    var data = {
+      schoolName: $('#setSchoolName').value,
+      logoUrl: $('#setLogoUrl').value,
+      primaryColor: $('#setPrimaryColor').value,
+      theme: $('#setTheme').value,
+      customFooterLine: $('#setFooterLine').value,
+      contactEmail: $('#setContactEmail').value
+    };
+    await callGS('updateSettings', data);
+    currentSettings = await callGS('getSettings');
+    applyTheme();
+    showToast('Settings saved', 'success');
+    bootstrap.Modal.getInstance($('#settingsModal')).hide();
+  }
+
+  async function resetDefaultSettings() {
+    if (!confirm('Reset all settings to default?')) return;
+    await callGS('resetSettings');
+    currentSettings = await callGS('getSettings');
+    applyTheme();
+    renderSettingsForm();
+    showToast('Settings reset to default', 'info');
+  }
+
+  async function clearCache() {
+    await callGS('clearCache');
+    showToast('Cache cleared', 'success');
+  }
+
+  // ==================== INIT ====================
+  window.addEventListener('load', async function() {
+    await loadSettings();
+    loadSheetSelector();
+    loadClassAndSectionOptions();
+    updateColumns();
+  });
+</script>
+</body>
+</html>
